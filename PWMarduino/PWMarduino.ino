@@ -1,4 +1,3 @@
-#include <avr/sleep.h>      // powerdown library
 #include <SoftwareSerial.h>
 SoftwareSerial mySerial(10, 11); // RX |
 //Constants for inputs
@@ -18,7 +17,7 @@ float c1 = 6.88216e-04, c2 = 2.894356e-04;
 const int ten_volt = 480;
 const int ten_four_volt = 500;
 const int eight_five_volt = 400;
-const int one_volt = 80;
+const int one_volt = 100;
 const int constantCurrent = 100;
 // Set 'TOP' for PWM resolution.  Assumes 16 MHz clock.
 const unsigned int TOP = 0x013F; //
@@ -39,10 +38,9 @@ ISR(INT0_vect) {
 void wakeUp()
 {
   stopSleep();
-  //sleep_disable();
   // Clear interrupt flag for INT0
   EIFR |= (1 << INTF0); // Set INTF0 bit in EIFR to clear interrupt flag
-//  detachInterrupt (0);
+  //detachInterrupt (0);
   ADCSRA = keep_ADCSRA;
 }
 
@@ -67,44 +65,29 @@ void loop()
   int analogValue = analogRead(boost); // reading current being outputted by boost converter
   int batteryCharge = analogRead(battery); // reading battery charge
   int supply = analogRead(inputVoltage); // reading battery charge
-    if(millis()%30000 == 0 && millis() > 30000){ // negative voltage detection
-      compare2 = compare1; // privious charge
-      compare1 = batteryCharge; // current charge
-      compare3 = compare1 - compare2;
+//    if(millis()%30000 == 0){ // negative voltage detection
+//      compare2 = compare1; // privious charge
+//      compare1 = batteryCharge; // current charge
+//      compare3 = compare1 - compare2;
+//    }
+//    if(compare3 < 0 && batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V
+//      maxReached = 1; // the max voltage has been met
+//    }
+    if(batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V
+        maxReached = 1; // the max voltage has been met
     }
-  
-    if(compare3 < 0 && batteryCharge > ten_volt && supply > one_volt ){ // 480 should be the reading at around 10V
-      maxReached = 1; // the max voltage has been met
-      maxA = -1;
-    }
-  
-    if(batteryCharge < eight_five_volt && supply > one_volt ){ // reading at 8.5V
+    if(batteryCharge < eight_five_volt ){ // reading at 8.5V
       maxReached = 0; // the battery should resume normal charging
     }
   //check if the device should go into sleep mode becuase there is no input power formt the "sun"
-  if (millis() % 200 == 0 && supply < one_volt ) { // less then 1.5V
+  if (millis() % 200 == 0 && supply < one_volt ) { // less then 1V
     PWM16Disable();
-//    pinMode(led, OUTPUT);
-    digitalWrite(led, HIGH);
-    delay(2000);
-    digitalWrite(led, LOW);
-//    pinMode(led, INPUT);
-    delay(50);
     setupSleep();
     goSleep();// now go to Sleep and waits/*
     //stopSleep();
     int test = analogRead(inputVoltage);
     ///check if it shoudl wake up and turn the PWM wave back on
     if (analogRead(inputVoltage) > one_volt) {
-//      pinMode(led, OUTPUT);
-      digitalWrite(led, HIGH);
-      delay(500);
-      digitalWrite(led, LOW);
-      delay(500);
-      digitalWrite(led, HIGH);
-      delay(500);
-      digitalWrite(led, LOW);
-      delay(500);
       maxA = 0;
       PWM16Enable();
     }
@@ -114,6 +97,9 @@ void loop()
   if (millis() % 1000 == 0) {
     sendTemp(getTemp());
   }
+//  if (maxReached == 1 && maxA >=5) {
+//    maxA-=5;
+//  }
   //constrain PWM just incase, to avoid always on
   if (maxA > maxPWM) {
     maxA = maxPWM;
@@ -174,15 +160,11 @@ void setupSleep() {
 void goSleep() {
   keep_ADCSRA = ADCSRA;
   ADCSRA = 0;
-    asm volatile ("cli"); // Disable global interrupts
-//  noInterrupts();
+    asm volatile ("cli"); // Disable  interrupts
   digitalWrite(clockTrig, LOW);
   delay(500);
   digitalWrite(clockTrig, HIGH);
   delay(500);
-//  attachInterrupt (0, wakeUp, LOW);
-//  set_sleep_mode (SLEEP_MODE_PWR_DOWN);
-//  sleep_enable();
     // Enter power-down mode
     SMCR |= (1 << SM1); // Set bit SM1 in SMCR (Sleep Mode Control Register) for power-down mode
     SMCR |= (1 << SE); // Enable sleep mode
@@ -192,8 +174,6 @@ void goSleep() {
     asm volatile ("sei");    // Enable global interrupts
     asm volatile ("sleep");  // Enter sleep mode
   //////PRR= 0xFF;///breaks code
-//  interrupts ();  // one cycle
-//  sleep_cpu ();   // one cycle
 }
 void stopSleep() {
     SMCR &= (uint8_t)~(1 << SE); // Enable sleep mode
