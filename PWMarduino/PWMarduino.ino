@@ -40,7 +40,6 @@ void wakeUp()
   stopSleep();
   // Clear interrupt flag for INT0
   EIFR |= (1 << INTF0); // Set INTF0 bit in EIFR to clear interrupt flag
-  //detachInterrupt (0);
   ADCSRA = keep_ADCSRA;
 }
 
@@ -70,7 +69,7 @@ void loop()
 //      compare1 = batteryCharge; // current charge
 //      compare3 = compare1 - compare2;
 //    }
-//    if(compare3 < 0 && batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V
+//    if(compare3 < 0 && batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V. used for negative delta detection
 //      maxReached = 1; // the max voltage has been met
 //    }
     if(batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V
