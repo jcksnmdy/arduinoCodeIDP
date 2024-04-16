@@ -14,10 +14,10 @@ int initialReading;
 float R1 = 100000;
 float logR2, R2, T;
 float c1 = 6.88216e-04, c2 = 2.894356e-04;
-const int ten_volt = 480;
-const int ten_four_volt = 500;
+const int ten_volt = 500;
+const int ten_four_volt = 520;
 const int eight_five_volt = 400;
-const int one_volt = 100;
+const int one_volt = 90;
 const int constantCurrent = 100;
 // Set 'TOP' for PWM resolution.  Assumes 16 MHz clock.
 const unsigned int TOP = 0x013F; //
@@ -41,6 +41,16 @@ void wakeUp()
   // Clear interrupt flag for INT0
   EIFR |= (1 << INTF0); // Set INTF0 bit in EIFR to clear interrupt flag
   ADCSRA = keep_ADCSRA;
+//  for (byte i = 0; i <= A5; i++)
+//  {
+//    pinMode (i, INPUT);    // changed as per below
+//  }
+//  for (byte i = 0; i <= 15; i++)
+//  {
+//    if (i != clockTrig && i != wakeUpPin) {
+//      pinMode (i, OUTPUT);    // changed as per below
+//    }
+//  }
 }
 
 void setup()
@@ -54,30 +64,35 @@ void setup()
   pinMode(led, OUTPUT);//delete eventually
   pinMode(clockTrig, OUTPUT);
   digitalWrite(clockTrig, HIGH);
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+  pinMode(A2, INPUT);
+  pinMode(A3, INPUT);
   PWM16Begin();
   // On the Arduino UNO T1A is Pin 9
   PWM16(0);  // Set initial PWM value for Pin 9
   PWM16Enable();  // Turn PWM on for Pin 9
+  delay(100);
 }
 void loop()
 {
   int analogValue = analogRead(boost); // reading current being outputted by boost converter
   int batteryCharge = analogRead(battery); // reading battery charge
   int supply = analogRead(inputVoltage); // reading battery charge
-//    if(millis()%30000 == 0){ // negative voltage detection
-//      compare2 = compare1; // privious charge
-//      compare1 = batteryCharge; // current charge
-//      compare3 = compare1 - compare2;
-//    }
-//    if(compare3 < 0 && batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V. used for negative delta detection
-//      maxReached = 1; // the max voltage has been met
-//    }
-    if(batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V
-        maxReached = 1; // the max voltage has been met
-    }
-    if(batteryCharge < eight_five_volt ){ // reading at 8.5V
-      maxReached = 0; // the battery should resume normal charging
-    }
+  //    if(millis()%30000 == 0){ // negative voltage detection
+  //      compare2 = compare1; // privious charge
+  //      compare1 = batteryCharge; // current charge
+  //      compare3 = compare1 - compare2;
+  //    }
+  //    if(compare3 < 0 && batteryCharge > ten_four_volt){ // 480 should be the reading at around 10V. used for negative delta detection
+  //      maxReached = 1; // the max voltage has been met
+  //    }
+  if (batteryCharge > ten_four_volt) { // 480 should be the reading at around 10V
+    maxReached = 1; // the max voltage has been met
+  }
+  if (batteryCharge < eight_five_volt ) { // reading at 8.5V
+    maxReached = 0; // the battery should resume normal charging
+  }
   //check if the device should go into sleep mode becuase there is no input power formt the "sun"
   if (millis() % 200 == 0 && supply < one_volt ) { // less then 1V
     PWM16Disable();
@@ -85,20 +100,28 @@ void loop()
     goSleep();// now go to Sleep and waits/*
     //stopSleep();
     int test = analogRead(inputVoltage);
+    sendTemp(getTemp());
     ///check if it shoudl wake up and turn the PWM wave back on
-    if (analogRead(inputVoltage) > one_volt) {
+    if (analogRead(inputVoltage) > 40) {
       maxA = 0;
+  pinMode(A1, INPUT);
+  pinMode(A2, INPUT);
+  pinMode(A3, INPUT);
+    pinMode (10, OUTPUT);  
+    pinMode (11, OUTPUT); 
+    
+  delay(100);  
       PWM16Enable();
     }
-  } else if (millis() % 200 == 0 && maxReached == 0) {
+  } else if (millis() % 200 == 0) {
     adjustDuty(analogValue, batteryCharge);
   }
   if (millis() % 1000 == 0) {
     sendTemp(getTemp());
   }
-//  if (maxReached == 1 && maxA >=5) {
-//    maxA-=5;
-//  }
+  //  if (maxReached == 1 && maxA >=5) {
+  //    maxA-=5;
+  //  }
   //constrain PWM just incase, to avoid always on
   if (maxA > maxPWM) {
     maxA = maxPWM;
@@ -159,33 +182,51 @@ void setupSleep() {
 void goSleep() {
   keep_ADCSRA = ADCSRA;
   ADCSRA = 0;
-    asm volatile ("cli"); // Disable  interrupts
+  asm volatile ("cli"); // Disable  interrupts
   digitalWrite(clockTrig, LOW);
   delay(500);
   digitalWrite(clockTrig, HIGH);
   delay(500);
-    // Enter power-down mode
-    SMCR |= (1 << SM1); // Set bit SM1 in SMCR (Sleep Mode Control Register) for power-down mode
-    SMCR |= (1 << SE); // Enable sleep mode
+  
+  pinMode(A1, OUTPUT);
+  pinMode(A2, OUTPUT);
+  pinMode(A3, OUTPUT);
+    pinMode (10, INPUT);  
+    pinMode (11, INPUT);   
+//  for (byte i = 0; i <= A5; i++)
+//  {
+//    pinMode (i, OUTPUT);    // changed as per below
+//    //digitalWrite (i, LOW);  //     ditto
+//  }
+//  for (byte i = 0; i <= 13; i++)
+//  {
+//    if (i != clockTrig && i != wakeUpPin) {
+//      pinMode (i, INPUT);    // changed as per below
+//    }
+//  }
+  // Enter power-down mode
+  SMCR |= (1 << SM1); // Set bit SM1 in SMCR (Sleep Mode Control Register) for power-down mode
+  SMCR |= (1 << SE); // Enable sleep mode
   MCUCR &= (1 << BODS) | (1 << BODSE);//to turn off brown out detections first
   MCUCR &= (1 << BODS) | ~(1 << BODSE);//second step
   ////  ADCSRA &= ~(1 << ADEN);
-    asm volatile ("sei");    // Enable global interrupts
-    asm volatile ("sleep");  // Enter sleep mode
+  asm volatile ("sei");    // Enable global interrupts
+  asm volatile ("sleep");  // Enter sleep mode
   //////PRR= 0xFF;///breaks code
 }
 void stopSleep() {
-    SMCR &= (uint8_t)~(1 << SE); // Enable sleep mode
+  SMCR &= (uint8_t)~(1 << SE); // Enable sleep mode
   //  //finished sleeping and been interupted
-    asm volatile ("cli"); // Disable global interrupts
-    //SMCR &= ~(1 << SM0) & ~(1 << SM1) & ~(1 << SM2);
+  asm volatile ("cli"); // Disable global interrupts
+  //SMCR &= ~(1 << SM0) & ~(1 << SM1) & ~(1 << SM2);
   //  MCUCR |= ~(1 << BODS) | ~(1 << BODSE);//to turn on brown out detections first
   //  MCUCR = bit (BODS); //second step
-// ////   PRR &= ~(1 << PRTWI) & ~(1 << PRTIM2) & ~(1 << PRTIM0) & ~(1 << PRSPI) & ~(1 << PRUSART0) & ~(1 << PRTIM1) & ~(1 << PRSPI) & ~(1 << PRADC);
-//  ////PRR = 0; breaks code
+  // ////   PRR &= ~(1 << PRTWI) & ~(1 << PRTIM2) & ~(1 << PRTIM0) & ~(1 << PRSPI) & ~(1 << PRUSART0) & ~(1 << PRTIM1) & ~(1 << PRSPI) & ~(1 << PRADC);
+  //  ////PRR = 0; breaks code
 }
 //////////TEMPERATURE FUNCTIONS///////////////////////
 int getTemp() {
+  pinMode(ThermistorPin, INPUT);    // changed as per below
   initialReading = analogRead(ThermistorPin);
   R2 = R1 * (1023.0 / (float)initialReading - 1.0);
   logR2 = log(R2);
